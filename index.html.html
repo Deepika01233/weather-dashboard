@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modern Weather App</title>
+<style>
+/* Smooth background transitions */
+body {
+    margin: 0;
+    font-family: 'Arial', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 50px;
+    color: #fff;
+    background: linear-gradient(135deg, #74ebd5, #ACB6E5);
+    transition: background 0.8s ease-in-out;
+}
+
+/* Glass container */
+.container {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 25px;
+    width: 360px;
+    box-shadow: 0 8px 32px 0 rgba(31,38,135,0.37);
+    text-align: center;
+    color: #fff;
+}
+
+h2, h3, h4 {
+    margin: 10px 0;
+}
+
+input {
+    padding: 10px;
+    width: 70%;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    background: #007bff;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+/* Current weather icon */
+.weather-icon {
+    width: 80px;
+    height: 80px;
+}
+
+/* Horizontal 5-day forecast */
+#forecast {
+    margin-top: 15px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 10px 0;
+}
+
+.forecast-card {
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(5px);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    min-width: 80px;
+    color: #fff;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.forecast-card h5 {
+    margin: 5px 0;
+    font-size: 12px;
+}
+
+.forecast-icon {
+    width: 60px;
+    height: 60px;
+}
+
+/* Last searched cities */
+#lastCities {
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    border-radius: 10px;
+    margin-top: 15px;
+    text-align: center;
+}
+
+#lastCities button {
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 5px 12px;
+    margin: 3px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+#lastCities button:hover {
+    background: #e65100;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h2>Weather Dashboard</h2>
+    <input type="text" id="city" placeholder="Enter city">
+    <button onclick="getWeather()">Search</button>
+
+    <div id="result"></div>
+    <div id="forecast"></div>
+    <div id="lastCities"></div>
+</div>
+
+<script>
+const apiKey = "dfb4734af93d3d93c778a19df12e80ac";
+
+// Auto-detect location
+window.addEventListener('load', () => {
+    if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(position => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            getWeatherByCoords(lat, lon);
+        });
+    }
+    updateLastCities();
+});
+
+// Update background based on weather
+function updateBackground(weatherMain) {
+    let bgUrl = "";
+    switch(weatherMain.toLowerCase()){
+        case "clear":
+            bgUrl = "https://images.unsplash.com/photo-1501975558160-8d9dbfd7f4ad?auto=format&fit=crop&w=1350&q=80";
+            break;
+        case "clouds":
+            bgUrl = "https://images.unsplash.com/photo-1502920917128-1aa500764ff0?auto=format&fit=crop&w=1350&q=80";
+            break;
+        case "rain":
+        case "drizzle":
+            bgUrl = "https://images.unsplash.com/photo-1526676034285-9c3f64442721?auto=format&fit=crop&w=1350&q=80";
+            break;
+        case "thunderstorm":
+            bgUrl = "https://images.unsplash.com/photo-1501973801540-1f0d0ebd939f?auto=format&fit=crop&w=1350&q=80";
+            break;
+        case "snow":
+            bgUrl = "https://images.unsplash.com/photo-1601758123927-45064f2108ef?auto=format&fit=crop&w=1350&q=80";
+            break;
+        case "mist":
+        case "fog":
+        case "haze":
+            bgUrl = "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1350&q=80";
+            break;
+        default:
+            bgUrl = "https://images.unsplash.com/photo-1501973801540-1f0d0ebd939f?auto=format&fit=crop&w=1350&q=80";
+    }
+    document.body.style.background = `url('${bgUrl}') no-repeat center center fixed`;
+    document.body.style.backgroundSize = "cover";
+}
+
+// Get weather by city
+async function getWeather() {
+    const city = document.getElementById("city").value.trim();
+    if(city === ""){
+        alert("Please enter a city");
+        return;
+    }
+
+    const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.cod !== 200) {
+        document.getElementById("result").innerHTML = "❌ City not found.";
+        document.getElementById("forecast").innerHTML = "";
+        return;
+    }
+
+    showWeather(data);
+    saveCity(city);
+    getForecast(city);
+}
+
+// Get weather by coordinates
+async function getWeatherByCoords(lat, lon) {
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if(data.cod === 200) showWeather(data);
+}
+
+// Show current weather
+function showWeather(data){
+    const icon = `https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`;
+    document.getElementById("result").innerHTML = `
+        <h3>${data.name}</h3>
+        <img src="${icon}" class="weather-icon">
+        🌡 Temp: <b>${data.main.temp}°C</b><br>
+        💧 Humidity: <b>${data.main.humidity}%</b><br>
+        🌬 Wind: <b>${data.wind.speed} m/s</b><br>
+        ☁ Weather: <b>${data.weather[0].description}</b>
+    `;
+    updateBackground(data.weather[0].main);
+}
+
+// 5-day horizontal forecast
+async function getForecast(city){
+    const url = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    let forecastHTML = "";
+    data.list.forEach(item => {
+        if(item.dt_txt.includes("12:00:00")){
+            const icon = `https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`;
+            forecastHTML += `
+                <div class="forecast-card">
+                    <h5>${item.dt_txt.split(" ")[0]}</h5>
+                    <img src="${icon}" class="forecast-icon">
+                    <p>🌡 ${item.main.temp}°C</p>
+                    <p>☁ ${item.weather[0].description}</p>
+                </div>
+            `;
+        }
+    });
+    document.getElementById("forecast").innerHTML = forecastHTML;
+}
+
+// Last searched cities
+function saveCity(city){
+    let lastCities = JSON.parse(localStorage.getItem("cities")) || [];
+    if(!lastCities.includes(city)){
+        lastCities.push(city);
+        if(lastCities.length > 5) lastCities.shift();
+        localStorage.setItem("cities", JSON.stringify(lastCities));
+    }
+    updateLastCities();
+}
+
+function updateLastCities(){
+    const lastCities = JSON.parse(localStorage.getItem("cities")) || [];
+    if(lastCities.length === 0) return;
+
+    let html = "<h4>Last Searched:</h4>";
+    lastCities.forEach(city => {
+        html += `<button onclick="searchFromButton('${city}')">${city}</button> `;
+    });
+    document.getElementById("lastCities").innerHTML = html;
+}
+
+function searchFromButton(city){
+    document.getElementById("city").value = city;
+    getWeather();
+}
+</script>
+</body>
+</html>
